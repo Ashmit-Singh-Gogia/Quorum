@@ -1,5 +1,7 @@
 {
   "devDependencies": {
+    "@types/bcrypt": "^6.0.0",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^26.1.2",
     "@types/pg": "^8.20.0",
     "dotenv": "^17.4.2",
@@ -33,7 +35,10 @@
   "homepage": "https://github.com/Ashmit-Singh-Gogia/Quorum#readme",
   "dependencies": {
     "@types/express": "^5.0.6",
+    "bcrypt": "^6.0.0",
     "express": "^5.2.1",
-    "pg": "^8.22.0"
+    "jsonwebtoken": "^9.0.3",
+    "pg": "^8.22.0",
+    "pino": "^10.3.1"
   }
 }
