@@ -38,7 +38,7 @@ export async function createClassroomService(name: string, teacherId: UUID) {
 
         const createClassRoomTeacherQuery = {
             name: 'create-classroom-teacher',
-            text: 'INSERT INTO classroom_teachers(classroom_id, teacher_id, standing) VALUES($1, $2, $3) RETURNING id',
+            text: 'INSERT INTO classroom_teachers(classroom_id, teacher_id, standing) VALUES($1, $2, $3)',
             values: [classroomId, teacherId, 'owner'],
         }
         await pool.query(createClassRoomTeacherQuery)
@@ -68,12 +68,12 @@ export async function addCoTeacherService(classroom_id: UUID, coTeacherId: UUID)
         }
         const createClassRoomTeacherQuery = {
             name: 'add-co-teacher',
-            text: 'INSERT INTO classroom_teachers(classroom_id, teacher_id, standing) VALUES($1, $2, $3) RETURNING id',
+            text: 'INSERT INTO classroom_teachers(classroom_id, teacher_id, standing) VALUES($1, $2, $3)',
             values: [classroom_id, coTeacherId, 'co_teacher'],
         }
-        const res2 = await pool.query(createClassRoomTeacherQuery)
+        await pool.query(createClassRoomTeacherQuery)
         logger.info({ "classroomId": classroom_id, "coTeacherId": coTeacherId }, "Co-teacher added successfully")
-        return res2.rows[0].id
+        return { classroom_id, coTeacherId }
     } catch (err) {
         logger.error({ "error": err, "query": checkClassRoomQuery }, "Error while adding co-teacher")
         throw err
