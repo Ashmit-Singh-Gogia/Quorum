@@ -62,3 +62,17 @@ export async function checkClassMembership(req: Request, res: Response, next: Ne
     }
     return res.status(403).json({ message: 'User not allowed' });
 }
+
+export async function checkOwnerShip(req: Request, res: Response, next: NextFunction) {
+    const classroom_id = req.params.id;
+    const teacher_id = (req as any).user.userId;
+
+    const text = `SELECT 1 FROM classroom_teachers WHERE classroom_id = $1 AND teacher_id = $2 AND standing = 'owner'`
+    const values = [classroom_id, teacher_id]
+
+    const result = await pool.query(text, values)
+    if (result.rows.length > 0) {
+        return next();
+    }
+    return res.status(403).json({ message: 'User not allowed' });
+}

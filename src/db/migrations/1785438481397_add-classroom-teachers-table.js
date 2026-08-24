@@ -20,7 +20,7 @@ export const up = (pgm) => {
         primaryKey: ['classroom_id', 'teacher_id'],
     });
 
-    // exactly one owner per classroom — the partial unique index from Day 2
+    // exactly one owner per classroom — the partial unique index
     pgm.createIndex('classroom_teachers', 'classroom_id', {
         name: 'one_owner_per_classroom',
         unique: true,
