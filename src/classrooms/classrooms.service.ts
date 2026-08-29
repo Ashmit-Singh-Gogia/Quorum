@@ -119,3 +119,56 @@ export async function getClassroomsService(user_id: UUID) {
     const res = await pool.query(getClassroomsQuery)
     return res.rows
 }
+
+
+// student joining service
+export async function addStudentService(joinCode: string, userId: UUID) {
+
+    logger.info({ "joinCode": joinCode, "userId": userId }, "Looking up classroom with join code")
+
+    const queryClassroomWithJoinCode = {
+        name: 'check-classrooms-with-joincode',
+        text: 'SELECT id FROM classrooms WHERE join_code = $1',
+        values: [joinCode],
+    }
+    try {
+        const res = await pool.query(queryClassroomWithJoinCode)
+        if (res.rows.length === 0) {
+            logger.error({ "join_code": joinCode }, "no classroom exists with this join_code")
+            throw new Error("no classroom exists with this join_code");
+        }
+        const classroomId = res.rows[0].id
+
+
+        // Now we have a classroom this join code
+        const queryInsertStudent = {
+            name: 'insert-student',
+            text: 'Insert INTO classroom_students(classroom_id , student_id) VALUES($1 , $2)',
+            values: [classroomId, userId],
+        }
+        await pool.query(queryInsertStudent)
+        logger.info({ "classroomId": classroomId, "studentId": userId }, "student added successfully")
+        return { classroomId, userId }
+    } catch (err) {
+        logger.error({ "error": err, "query": queryClassroomWithJoinCode }, "error while using join_code")
+        throw err
+    }
+}
+
+export async function getMembersService(classroom_id: UUID) {
+    const queryGetMembers = {
+        name: 'get-members',
+        text: `SELECT ct.teacher_id AS user_id, u.name, ct.standing AS role
+               FROM classroom_teachers ct
+               JOIN users u ON u.id = ct.teacher_id
+               WHERE ct.classroom_id = $1
+               UNION ALL
+               SELECT cs.student_id AS user_id, u.name, 'student' AS role
+               FROM classroom_students cs
+               JOIN users u ON u.id = cs.student_id
+               WHERE cs.classroom_id = $1`,
+        values: [classroom_id],
+    }
+    const res = await pool.query(queryGetMembers)
+    return res.rows
+}
