@@ -47,7 +47,7 @@ export async function checkClassMembership(req: Request, res: Response, next: Ne
     if ((req as any).user.role == 'site_admin') {
         return next();
     }
-    const classroom_id = req.params.classroomId;
+    const classroom_id: UUID = req.params.id as UUID;
     const userId: UUID = (req as any).user.userId;
     const text = `
         SELECT 1 FROM classroom_teachers WHERE classroom_id = $1 AND teacher_id = $2
