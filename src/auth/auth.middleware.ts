@@ -29,9 +29,9 @@ export function authenticate(req: Request, res: Response, next: NextFunction) {
 
 };
 
-export function authorize(...authRoles: string[]) {
+export function authorize(...authRoles: ("student" | "site_admin" | "teacher")[]) {
     return (req: Request, res: Response, next: NextFunction) => {
-        const role: string = (req as any).user.role;
+        const role: "student" | "site_admin" | "teacher" = (req as any).user.role;
 
         for (let i = 0; i < authRoles.length; i++) {
             if (authRoles[i] == role) {
