@@ -192,7 +192,7 @@ export async function getQuestionsService(user_id: UUID, role: "student" | "teac
             throw new Error("You are not a member of this classroom");
         }
         const res = await pool.query(getQuestionsQuery)
-        
+
         if (role === "student") {
             return res.rows.map(question => {
                 const { correct_answer, ...rest } = question;
@@ -204,5 +204,115 @@ export async function getQuestionsService(user_id: UUID, role: "student" | "teac
     } catch (err) {
         logger.error({ "error": err, "query": getQuestionsQuery }, "Error while getting questions")
         throw new Error("Error while getting questions")
+    }
+}
+
+export async function submitQuestionService(
+    user_id: UUID,
+    question_id: UUID,
+    answer: string,
+) {
+    try {
+
+        // get the assignment id from the questions table // also checks if question exists
+        const checkQuestionQuery = {
+            name: 'check-question',
+            text: 'SELECT assignment_id FROM questions WHERE id = $1',
+            values: [question_id],
+        }
+        const resCheckQuestion = await pool.query(checkQuestionQuery)
+        if (resCheckQuestion.rows.length === 0) {
+            logger.error({ "question_id": question_id }, "Question does not exist")
+            throw new Error("Question not found");
+        }
+
+        const assignment_id = resCheckQuestion.rows[0].assignment_id
+
+        // fetch the classroom id from the assignments table
+        const checkAssignmentQuery = {
+            name: 'check-assignment',
+            text: 'SELECT classroom_id FROM assignments WHERE id = $1',
+            values: [assignment_id],
+        }
+        const resCheckAssignment = await pool.query(checkAssignmentQuery)
+        if (resCheckAssignment.rows.length === 0) {
+            logger.error({ "assignment_id": assignment_id }, "Assignment does not exist")
+            throw new Error("Assignment not found");
+        }
+
+        const classroom_id = resCheckAssignment.rows[0].classroom_id
+
+
+        const checkMembershipQuery = {
+            name: 'check-membership',
+            text: 'SELECT 1 FROM classroom_students WHERE classroom_id = $1 AND student_id = $2',
+            values: [classroom_id, user_id],
+        }
+
+        const resCheckMembership = await pool.query(checkMembershipQuery)
+        if (resCheckMembership.rows.length === 0) {
+            logger.error({ "user_id": user_id, "classroom_id": classroom_id }, "User is not a member of this classroom")
+            throw new Error("You are not a member of this classroom");
+        }
+
+        // check if the question is already submitted
+        const checkSubmissionQuery = {
+            name: 'check-submission',
+            text: 'SELECT 1 FROM submissions WHERE question_id = $1 AND student_id = $2',
+            values: [question_id, user_id],
+        }
+        const resCheckSubmission = await pool.query(checkSubmissionQuery)
+        if (resCheckSubmission.rows.length > 0) {
+            logger.error({ "question_id": question_id, "student_id": user_id }, "Question is already submitted")
+            throw new Error("Question is already submitted");
+        }
+
+        // check if the submission is late
+        const checkDeadlineQuery = {
+            name: 'check-deadline',
+            text: 'SELECT deadline FROM assignments WHERE id = $1',
+            values: [assignment_id],
+        }
+        const resCheckDeadline = await pool.query(checkDeadlineQuery)
+        if (resCheckDeadline.rows.length === 0) {
+            logger.error({ "assignment_id": assignment_id }, "Assignment does not exist")
+            throw new Error("Assignment not found");
+        }
+
+        const deadline = resCheckDeadline.rows[0].deadline
+
+        const isLate = deadline < new Date()
+
+        if (isLate) {
+            // deadline has passed — record a zero-scored submission, discard the answer
+            logger.warn({ "question_id": question_id, "student_id": user_id }, "Submission rejected — deadline has passed")
+            throw new Error("Deadline has passed, submission not allowed");
+        }
+
+        // insert the on-time submission
+        const insertSubmissionQuery = {
+            name: 'insert-submission',
+            text: 'INSERT INTO submissions(question_id, student_id, answer, is_late) VALUES($1, $2, $3, $4)',
+            values: [question_id, user_id, answer, false],
+        }
+
+        await pool.query(insertSubmissionQuery)
+        logger.info({ "question_id": question_id, "student_id": user_id, "answer": answer }, "Question submitted successfully")
+        return {
+            question_id,
+            student_id: user_id,
+            answer,
+            is_late: false,
+        }
+
+
+
+    } catch (err) {
+        if (err instanceof Error) {
+            logger.error({ "error": err.message }, "Error while submitting question")
+            throw err // re-throw with original message intact
+        }
+        logger.error({ "error": err }, "Unexpected error while submitting question")
+        throw new Error("Error while submitting question")
     }
 }

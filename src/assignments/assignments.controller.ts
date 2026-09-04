@@ -1,4 +1,4 @@
-import { createAssignmentService, getAssignmentsService, createQuestionService, getQuestionsService } from "./assignments.service.js";
+import { createAssignmentService, getAssignmentsService, createQuestionService, getQuestionsService, submitQuestionService } from "./assignments.service.js";
 import type { Request, Response } from "express";
 import pino from "pino";
 import type { UUID } from "node:crypto";
@@ -71,4 +71,35 @@ export async function getQuestions(req: Request, res: Response) {
         logger.error(err)
         res.status(500).json({ error: "Error while getting questions" })
     }
-}   
+}
+
+
+export async function submitQuestion(req: Request, res: Response) {
+    try {
+        const { question_id, answer } = req.body as {
+            question_id: UUID,
+            answer: string,
+        }
+        const student_id: UUID = (req as any).user.userId
+        const result = await submitQuestionService(student_id, question_id, answer)
+        res.status(201).json(result)
+    } catch (err) {
+        const message = err instanceof Error ? err.message : "Error while submitting question"
+        logger.error(err)
+
+        if (message === "Question not found" || message === "Assignment not found") {
+            return res.status(404).json({ error: message })
+        }
+        if (message === "You are not a member of this classroom") {
+            return res.status(403).json({ error: message })
+        }
+        if (message === "Question is already submitted") {
+            return res.status(409).json({ error: message })
+        }
+        if (message === "Deadline has passed, submission not allowed") {
+            return res.status(403).json({ error: message })
+        }
+
+        res.status(500).json({ error: "Error while submitting question" })
+    }
+}
