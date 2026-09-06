@@ -1,4 +1,4 @@
-import { createAssignmentService, getAssignmentsService, createQuestionService, getQuestionsService, submitQuestionService } from "./assignments.service.js";
+import { createAssignmentService, getAssignmentsService, createQuestionService, getQuestionsService, submitQuestionService, getAssignmentSubmissionsService, gradeSubmissionService } from "./assignments.service.js";
 import type { Request, Response } from "express";
 import pino from "pino";
 import type { UUID } from "node:crypto";
@@ -82,7 +82,7 @@ export async function submitQuestion(req: Request, res: Response) {
         }
         const student_id: UUID = (req as any).user.userId
         const result = await submitQuestionService(student_id, question_id, answer)
-        res.status(201).json(result)
+        return res.status(201).json(result)
     } catch (err) {
         const message = err instanceof Error ? err.message : "Error while submitting question"
         logger.error(err)
@@ -100,6 +100,70 @@ export async function submitQuestion(req: Request, res: Response) {
             return res.status(403).json({ error: message })
         }
 
-        res.status(500).json({ error: "Error while submitting question" })
+        return res.status(500).json({ error: "Error while submitting question" })
+    }
+}
+
+// Student (own) / Teacher (via ?student_id=)
+export async function getAssignmentSubmissions(req: Request, res: Response) {
+    try {
+        const user_id: UUID = (req as any).user.userId
+        const role: "student" | "teacher" | "site_admin" = (req as any).user.role
+        let student_id: UUID | null = null
+        if (role === "student") {
+            // Student always sees their own — can't pass another ID
+            student_id = user_id
+        } else if (role === "teacher") {
+            // Teacher must specify which student
+            student_id = req.query.student_id as UUID
+        }
+
+        if (!student_id) {
+            return res.status(400).json({ error: "student_id is required" })
+        }
+
+        const assignment_id = req.params.id as UUID
+        const result = await getAssignmentSubmissionsService(student_id, assignment_id)
+        return res.status(200).json(result)
+    } catch (err) {
+        const message = err instanceof Error ? err.message : "Error while getting assignment submissions"
+        logger.error(err)
+
+        if (message === "Assignment not found") {
+            return res.status(404).json({ error: message })
+        }
+        if (message === "You are not a member of this classroom") {
+            return res.status(403).json({ error: message })
+        }
+
+        return res.status(500).json({ error: "Error while getting assignment submissions" })
+    }
+}
+
+export async function gradeSubmission(req: Request, res: Response) {
+    try {
+        const { score, feedback } = req.body as {
+            score: number,
+            feedback?: string,
+        }
+        const submission_id = req.params.id as UUID
+        const user_id: UUID = (req as any).user.userId
+        const result = await gradeSubmissionService(user_id, submission_id, score, feedback)
+        return res.status(200).json(result)
+    } catch (err) {
+        const message = err instanceof Error ? err.message : "Error while grading submission"
+        logger.error(err)
+
+        if (message === "Submission not found") {
+            return res.status(404).json({ error: message })
+        }
+        if (message === "You are not a member of this classroom") {
+            return res.status(403).json({ error: message })
+        }
+        if (message === "Deadline has passed, submission not allowed") {
+            return res.status(403).json({ error: message })
+        }
+
+        return res.status(500).json({ error: "Error while grading submission" })
     }
 }

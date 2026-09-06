@@ -8,25 +8,21 @@ import type { UUID } from "node:crypto";
 export async function createAssignmentService(classroom_id: UUID, course_id: UUID, teacher_id: UUID, title: string, description: string, due_date: Date) {
 
     const checkClassroomQuery = {
-        name: 'check-classroom',
         text: 'SELECT 1 FROM classrooms WHERE id = $1',
         values: [classroom_id],
     }
 
     const checkTeacherQuery = {
-        name: 'check-teacher',
         text: 'SELECT 1 FROM classroom_teachers WHERE classroom_id = $1 AND teacher_id = $2',
         values: [classroom_id, teacher_id],
     }
 
     const checkCourseQuery = {
-        name: 'check-course',
         text: 'SELECT 1 FROM courses WHERE id = $1 AND teacher_id = $2',
         values: [course_id, teacher_id],
     }
 
     const createAssignmentQuery = {
-        name: 'create-assignment',
         text: 'INSERT INTO assignments(course_id, classroom_id, title, description, deadline, created_by) VALUES($1, $2, $3, $4, $5, $6) RETURNING id',
         values: [course_id, classroom_id, title, description, due_date, teacher_id],
     }
@@ -129,13 +125,11 @@ export async function createQuestionService(
 ) {
     // Check if the assignment exists and also created by the same teacher
     const checkAssignmentQuery = {
-        name: 'check-assignment-owner',
         text: 'SELECT 1 FROM assignments WHERE id = $1 AND created_by = $2',
         values: [assignment_id, teacher_id],
     }
 
     const createQuestionQuery = {
-        name: 'create-question',
         text: 'INSERT INTO questions(assignment_id, type, prompt, marks, options, correct_answer, is_required) VALUES($1, $2, $3, $4, $5, $6, $7) RETURNING id',
         values: [assignment_id, type, prompt, marks, options ? JSON.stringify(options) : null, correct_answer, is_required],
     }
@@ -161,13 +155,11 @@ export async function getQuestionsService(user_id: UUID, role: "student" | "teac
     // extract the classroom id using assignment id 
     // then check if the user is a member of the classroom using union on both student and teachers
     const checkAssignmentQuery = {
-        name: 'check-assignment',
         text: 'SELECT classroom_id FROM assignments WHERE id = $1',
         values: [assignment_id],
     }
 
     const getQuestionsQuery = {
-        name: 'get-questions',
         text: 'SELECT * FROM questions WHERE assignment_id = $1',
         values: [assignment_id],
     }
@@ -181,7 +173,6 @@ export async function getQuestionsService(user_id: UUID, role: "student" | "teac
         const classroom_id = resCheckAssignment.rows[0].classroom_id
 
         const checkMembershipQuery = {
-            name: 'check-membership',
             text: 'SELECT 1 FROM classroom_students WHERE classroom_id = $1 AND student_id = $2 UNION SELECT 1 FROM classroom_teachers WHERE classroom_id = $1 AND teacher_id = $2',
             values: [classroom_id, user_id],
         }
@@ -216,7 +207,6 @@ export async function submitQuestionService(
 
         // get the assignment id from the questions table // also checks if question exists
         const checkQuestionQuery = {
-            name: 'check-question',
             text: 'SELECT assignment_id FROM questions WHERE id = $1',
             values: [question_id],
         }
@@ -230,7 +220,6 @@ export async function submitQuestionService(
 
         // fetch the classroom id from the assignments table
         const checkAssignmentQuery = {
-            name: 'check-assignment',
             text: 'SELECT classroom_id FROM assignments WHERE id = $1',
             values: [assignment_id],
         }
@@ -244,7 +233,6 @@ export async function submitQuestionService(
 
 
         const checkMembershipQuery = {
-            name: 'check-membership',
             text: 'SELECT 1 FROM classroom_students WHERE classroom_id = $1 AND student_id = $2',
             values: [classroom_id, user_id],
         }
@@ -257,7 +245,6 @@ export async function submitQuestionService(
 
         // check if the question is already submitted
         const checkSubmissionQuery = {
-            name: 'check-submission',
             text: 'SELECT 1 FROM submissions WHERE question_id = $1 AND student_id = $2',
             values: [question_id, user_id],
         }
@@ -269,7 +256,6 @@ export async function submitQuestionService(
 
         // check if the submission is late
         const checkDeadlineQuery = {
-            name: 'check-deadline',
             text: 'SELECT deadline FROM assignments WHERE id = $1',
             values: [assignment_id],
         }
@@ -291,7 +277,6 @@ export async function submitQuestionService(
 
         // insert the on-time submission
         const insertSubmissionQuery = {
-            name: 'insert-submission',
             text: 'INSERT INTO submissions(question_id, student_id, answer, is_late) VALUES($1, $2, $3, $4)',
             values: [question_id, user_id, answer, false],
         }
@@ -314,5 +299,136 @@ export async function submitQuestionService(
         }
         logger.error({ "error": err }, "Unexpected error while submitting question")
         throw new Error("Error while submitting question")
+    }
+}
+
+
+export async function getAssignmentSubmissionsService(user_id: UUID, assignment_id: UUID) {
+
+    const getQuestionsQuery = {
+        text: `SELECT q.id AS question_id, s.student_id, s.answer, s.score, s.feedback, s.grading_status, s.graded_at, s.is_late
+                FROM questions q
+                LEFT JOIN submissions s ON s.question_id = q.id AND s.student_id = $2
+                WHERE q.assignment_id = $1`,
+        values: [assignment_id, user_id],
+    }
+
+    try {
+        const checkAssignmentQuery = {
+            text: 'SELECT classroom_id FROM assignments WHERE id = $1',
+            values: [assignment_id],
+        }
+        const resCheckAssignment = await pool.query(checkAssignmentQuery)
+        if (resCheckAssignment.rows.length === 0) {
+            logger.error({ "assignment_id": assignment_id }, "Assignment does not exist")
+            throw new Error("Assignment not found");
+        }
+
+        const classroom_id = resCheckAssignment.rows[0].classroom_id
+
+        const checkMembershipQuery = {
+            text: `SELECT 1 FROM classroom_students WHERE classroom_id = $1 AND student_id = $2
+                    UNION
+                    SELECT 1 FROM classroom_teachers WHERE classroom_id = $1 AND teacher_id = $2`,
+            values: [classroom_id, user_id],
+        }
+
+        const resCheckMembership = await pool.query(checkMembershipQuery)
+        if (resCheckMembership.rows.length === 0) {
+            logger.error({ "user_id": user_id, "classroom_id": classroom_id }, "User is not a member of this classroom")
+            throw new Error("You are not a member of this classroom");
+        }
+    } catch (err) {
+        logger.error({ "error": err }, "Error while checking membership")
+        throw new Error("Error while checking membership")
+    }
+
+    try {
+        const resGetQuestions = await pool.query(getQuestionsQuery)
+        const questions = resGetQuestions.rows
+        return questions
+    } catch (err) {
+        logger.error({ "error": err, "query": getQuestionsQuery }, "Error while getting assignment submissions")
+        throw new Error("Error while getting assignment submissions")
+    }
+}
+
+
+export async function gradeSubmissionService(user_id: UUID, submission_id: UUID, score: number, feedback?: string) {
+
+    try {
+        const checkSubmissionQuery = {
+            text: 'SELECT * FROM submissions WHERE id = $1',
+            values: [submission_id],
+        }
+        const resCheckSubmission = await pool.query(checkSubmissionQuery)
+        if (resCheckSubmission.rows.length === 0) {
+            logger.error({ "submission_id": submission_id }, "Submission does not exist")
+            throw new Error("Submission not found");
+        }
+
+        const question_id = resCheckSubmission.rows[0].question_id
+
+        const checkQuestionQuery = {
+            text: 'SELECT assignment_id FROM questions WHERE id = $1',
+            values: [question_id],
+        }
+        const resCheckQuestion = await pool.query(checkQuestionQuery)
+        if (resCheckQuestion.rows.length === 0) {
+            logger.error({ "question_id": question_id }, "Question does not exist")
+            throw new Error("Question not found");
+        }
+
+        const assignment_id = resCheckQuestion.rows[0].assignment_id
+
+        const checkAssignmentQuery = {
+            text: 'SELECT classroom_id FROM assignments WHERE id = $1',
+            values: [assignment_id],
+        }
+
+        const resCheckAssignment = await pool.query(checkAssignmentQuery)
+        if (resCheckAssignment.rows.length === 0) {
+            logger.error({ "assignment_id": assignment_id }, "Assignment does not exist")
+            throw new Error("Assignment not found");
+        }
+
+        const classroom_id = resCheckAssignment.rows[0].classroom_id
+
+        const checkMembershipQuery = {
+            text: 'SELECT 1 FROM classroom_teachers WHERE classroom_id = $1 AND teacher_id = $2',
+            values: [classroom_id, user_id],
+        }
+
+        const resCheckMembership = await pool.query(checkMembershipQuery)
+        if (resCheckMembership.rows.length === 0) {
+            logger.error({ "user_id": user_id, "classroom_id": classroom_id }, "User is not a teacher of this classroom")
+            throw new Error("You are not a teacher of this classroom");
+        }
+
+        const updateSubmissionQuery = {
+            text: 'UPDATE submissions SET score = $1, feedback = $2, graded_at = current_timestamp, grading_status = $4 WHERE id = $3',
+            values: [score, feedback, submission_id, 'graded'],
+        }
+
+        const resUpdateSubmission = await pool.query(updateSubmissionQuery)
+        if (resUpdateSubmission.rowCount === 0) {
+            logger.error({ "submission_id": submission_id }, "Submission does not exist")
+            throw new Error("Submission not found");
+        }
+
+        logger.info({ "submission_id": submission_id, "score": score, "feedback": feedback }, "Submission graded successfully")
+        return {
+            submission_id,
+            score,
+            feedback,
+        }
+
+    } catch (err) {
+        if (err instanceof Error) {
+            logger.error({ "error": err.message }, "Error while grading submission")
+            throw err
+        }
+        logger.error({ "error": err }, "Unexpected error while grading submission")
+        throw new Error("Error while grading submission")
     }
 }
