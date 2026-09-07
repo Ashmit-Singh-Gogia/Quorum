@@ -1,4 +1,4 @@
-import { createAssignmentService, getAssignmentsService, createQuestionService, getQuestionsService, submitQuestionService, getAssignmentSubmissionsService, gradeSubmissionService } from "./assignments.service.js";
+import { createAssignmentService, getAssignmentsService, createQuestionService, getQuestionsService, submitQuestionService, getAssignmentSubmissionsService, gradeSubmissionService, publishDraftService } from "./assignments.service.js";
 import type { Request, Response } from "express";
 import pino from "pino";
 import type { UUID } from "node:crypto";
@@ -165,5 +165,26 @@ export async function gradeSubmission(req: Request, res: Response) {
         }
 
         return res.status(500).json({ error: "Error while grading submission" })
+    }
+}
+
+export async function publishDraft(req: Request, res: Response) {
+    try {
+        const assignment_id = req.params.id as UUID
+        const user_id: UUID = (req as any).user.userId
+        const result = await publishDraftService(user_id, assignment_id)
+        return res.status(200).json(result)
+    } catch (err) {
+        const message = err instanceof Error ? err.message : "Error while publishing assignment"
+        logger.error(err)
+
+        if (message === "Assignment not found") {
+            return res.status(404).json({ error: message })
+        }
+        if (message === "You are not a member of this classroom") {
+            return res.status(403).json({ error: message })
+        }
+
+        return res.status(500).json({ error: "Error while publishing assignment" })
     }
 }

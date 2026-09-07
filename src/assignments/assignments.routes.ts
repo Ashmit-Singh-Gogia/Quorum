@@ -1,7 +1,7 @@
 import { authenticate, checkClassMembership } from "../auth/auth.middleware.js";
 import { authorize } from "../auth/auth.middleware.js";
 import { Router } from "express";
-import { createAssignmentController, getAssignments, createQuestion, getQuestions, submitQuestion, getAssignmentSubmissions, gradeSubmission } from "./assignments.controller.js";
+import { createAssignmentController, getAssignments, createQuestion, getQuestions, submitQuestion, getAssignmentSubmissions, gradeSubmission, publishDraft } from "./assignments.controller.js";
 const router = Router();
 
 
@@ -26,4 +26,6 @@ router.get('/:id/submissions', authenticate, getAssignmentSubmissions)
 // here id is assignment id and this route allows a teacher to grade a submission and give marks and feedback
 router.post('/:id/grade', authenticate, authorize('teacher', 'site_admin'), gradeSubmission)
 
+// this route is to publish a draft assignment.
+router.patch('/:id/publish', authenticate, authorize('teacher', 'site_admin'), publishDraft)
 export default router;

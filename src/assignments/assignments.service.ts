@@ -432,3 +432,56 @@ export async function gradeSubmissionService(user_id: UUID, submission_id: UUID,
         throw new Error("Error while grading submission")
     }
 }
+
+export async function publishDraftService(user_id: UUID, assignment_id: UUID) {
+
+    try {
+        const checkAssignmentQuery = {
+            text: 'SELECT classroom_id FROM assignments WHERE id = $1',
+            values: [assignment_id],
+        }
+        const resCheckAssignment = await pool.query(checkAssignmentQuery)
+        if (resCheckAssignment.rows.length === 0) {
+            logger.error({ "assignment_id": assignment_id }, "Assignment does not exist")
+            throw new Error("Assignment not found");
+        }
+
+        const classroom_id = resCheckAssignment.rows[0].classroom_id
+
+        const checkMembershipQuery = {
+            text: 'SELECT 1 FROM classroom_teachers WHERE classroom_id = $1 AND teacher_id = $2',
+            values: [classroom_id, user_id],
+        }
+
+        const resCheckMembership = await pool.query(checkMembershipQuery)
+        if (resCheckMembership.rows.length === 0) {
+            logger.error({ "user_id": user_id, "classroom_id": classroom_id }, "User is not a teacher of this classroom")
+            throw new Error("You are not a teacher of this classroom");
+        }
+
+        const updateAssignmentQuery = {
+            text: 'UPDATE assignments SET is_published = $1 WHERE id = $2',
+            values: [true, assignment_id],
+        }
+
+        const resUpdateAssignment = await pool.query(updateAssignmentQuery)
+        if (resUpdateAssignment.rowCount === 0) {
+            logger.error({ "assignment_id": assignment_id }, "Assignment does not exist")
+            throw new Error("Assignment not found");
+        }
+
+        logger.info({ "assignment_id": assignment_id, "user_id": user_id }, "Assignment published successfully")
+        return {
+            assignment_id,
+            user_id,
+        }
+
+    } catch (err) {
+        if (err instanceof Error) {
+            logger.error({ "error": err.message }, "Error while publishing assignment")
+            throw err
+        }
+        logger.error({ "error": err }, "Unexpected error while publishing assignment")
+        throw new Error("Error while publishing assignment")
+    }
+}
