@@ -29,3 +29,21 @@ export async function createCourseService(name: string, teacher_id: UUID, classr
         throw new Error("Error while creating course")
     }
 }
+
+// no need to check the classmembership here , it will be handled by the middleware
+export async function getCoursesService(classroom_id: UUID) {
+    const getCourseQuery = {
+        name: 'get-course',
+        text: 'SELECT * FROM courses WHERE classroom_id = $1',
+        values: [classroom_id],
+    }
+    try {
+        const res = await pool.query(getCourseQuery)
+        const course = res.rows
+        logger.info({ "course": course, "classroom_id": classroom_id }, "Course fetched successfully")
+        return course
+    } catch (err) {
+        logger.error({ "error": err, "query": getCourseQuery }, "Error while fetching course")
+        throw new Error("Error while fetching course")
+    }
+}
