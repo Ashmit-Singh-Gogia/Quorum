@@ -113,7 +113,13 @@ export async function regenerateJoinCodeService(classroom_id: UUID) {
 export async function getClassroomsService(user_id: UUID) {
     const getClassroomsQuery = {
         name: 'get-classrooms',
-        text: 'SELECT classroom_id FROM classroom_teachers WHERE teacher_id = $1 UNION ALL SELECT classroom_id FROM classroom_students WHERE student_id = $1',
+        text: `SELECT c.*, ct.standing as role FROM classroom_teachers ct
+        JOIN classrooms c ON c.id = ct.classroom_id
+        WHERE ct.teacher_id = $1
+        UNION ALL
+        SELECT c.*, 'student' as role FROM classroom_students cs
+        JOIN classrooms c ON c.id = cs.classroom_id
+        WHERE cs.student_id = $1`,
         values: [user_id],
     }
     const res = await pool.query(getClassroomsQuery)

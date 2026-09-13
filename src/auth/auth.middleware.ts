@@ -64,8 +64,8 @@ export async function checkClassMembership(req: Request, res: Response, next: Ne
 }
 
 export async function checkOwnerShip(req: Request, res: Response, next: NextFunction) {
-    const classroom_id = req.params.id;
-    const teacher_id = (req as any).user.userId;
+    const classroom_id = req.params.id as UUID;
+    const teacher_id = (req as any).user.userId as UUID;
 
     const text = `SELECT 1 FROM classroom_teachers WHERE classroom_id = $1 AND teacher_id = $2 AND standing = 'owner'`
     const values = [classroom_id, teacher_id]

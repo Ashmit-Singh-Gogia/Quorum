@@ -7,9 +7,8 @@ import { createCourseService, getCoursesService } from "./courses.service.js";
 
 export async function createCourse(req: Request, res: Response) {
     try {
-        const { name } = req.body as { name: string }
+        const { name, classroom_id } = req.body as { name: string, classroom_id: UUID }
         const teacherId: UUID = (req as any).user.userId
-        const classroom_id: UUID = req.params.id as UUID
         const courseId = await createCourseService(name, teacherId, classroom_id)
         res.status(201).json({ courseId })
     } catch (err) {
