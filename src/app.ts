@@ -3,6 +3,7 @@ import authRoutes from './auth/auth.routes.js'
 import classroomsRoutes from './classrooms/classrooms.routes.js'
 import assignmentRoutes from './assignments/assignments.routes.js'
 import courseRoutes from './courses/courses.routes.js'
+import postRoutes from './posts/posts.routes.js'
 import cors from 'cors';
 
 const app: Express = express();
@@ -21,6 +22,7 @@ app.use('/auth', authRoutes);
 app.use('/classrooms', classroomsRoutes);
 app.use('/courses', courseRoutes);
 app.use('/assignments', assignmentRoutes);
+app.use('/posts', postRoutes)
 
 //health route
 app.get('/health', (_req: Request, res: Response) => {

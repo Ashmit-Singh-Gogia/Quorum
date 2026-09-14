@@ -30,7 +30,6 @@ export async function createCourseService(name: string, teacher_id: UUID, classr
     }
 }
 
-// no need to check the classmembership here , it will be handled by the middleware
 export async function getCoursesService(classroom_id: UUID) {
     const getCourseQuery = {
         name: 'get-course',

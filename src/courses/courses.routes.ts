@@ -1,5 +1,4 @@
-import { authenticate, checkClassMembership } from "../auth/auth.middleware.js";
-import { authorize } from "../auth/auth.middleware.js";
+import { authenticate, checkClassMembership, authorize } from "../auth/auth.middleware.js";
 import { Router } from "express";
 import { createCourse, getCourses } from "./courses.controller.js";
 
